@@ -15,33 +15,41 @@ const visaVerificationSchema = z.object({
  * GET /me/profile
  */
 meRouter.get("/profile", requireAuth, async (req, res) => {
-  const profile = await prisma.profile.findUnique({
-    where: { userId: req.user!.id },
+  const user = await prisma.user.findUnique({
+    where: { id: req.user!.id },
+    select: {
+      email: true,
+      profile: true,
+    },
   });
 
-  res.json(profile);
+  if (!user?.profile) {
+    return res.json({ email: user?.email, profile: null });
+  }
+
+  res.json({ email: user.email, profile: user.profile });
 });
 
 /**
  * PUT /me/profile
  */
 meRouter.put("/profile", requireAuth, async (req, res) => {
-  const { visaType, purpose, city, nationality } = req.body;
+  const { fullName, nationality, city, visaType } = req.body;
 
   const profile = await prisma.profile.upsert({
     where: { userId: req.user!.id },
     update: {
-      visaType,
-      purpose,
-      city,
+      fullName,
       nationality,
+      city,
+      visaType,
     },
     create: {
       userId: req.user!.id,
-      visaType,
-      purpose,
-      city,
+      fullName,
       nationality,
+      city,
+      visaType,
     },
   });
 
