@@ -126,3 +126,44 @@ authRouter.post("/login", async (req, res, next) => {
     next(err);
   }
 });
+
+// POST /auth/refresh
+authRouter.post("/refresh", async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) throw new HttpError(400, "Refresh token required");
+
+    let decoded: any;
+    try {
+      decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+    } catch {
+      throw new HttpError(401, "Invalid or expired refresh token");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { id: true, email: true },
+    });
+
+    if (!user) throw new HttpError(401, "User not found");
+
+    const newAccessToken = signAccessToken(user);
+    const newRefreshToken = signRefreshToken(user);
+
+    // Store new refresh token
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: await bcrypt.hash(newRefreshToken, 10),
+      },
+    });
+
+    res.json({
+      ok: true,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
