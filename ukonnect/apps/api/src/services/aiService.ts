@@ -10,8 +10,8 @@ export async function buildContext(userId: string, question: string): Promise<Co
   const faqs = await prisma.faqEntry.findMany({
     where: {
       OR: [
-        { topic: { contains: q, mode: "insensitive" } },
-        { question: { contains: q, mode: "insensitive" } }
+        { topic: { contains: q } },
+        { question: { contains: q } }
       ]
     },
     take: 5
@@ -19,7 +19,7 @@ export async function buildContext(userId: string, question: string): Promise<Co
 
   const services = me?.city
     ? await prisma.localService.findMany({
-        where: { city: { contains: me.city, mode: "insensitive" } },
+        where: { city: { contains: me.city } },
         take: 5
       })
     : [];
@@ -62,10 +62,10 @@ export function simpleAnswer(question: string, context: ContextItem[]) {
     return { answer: lines.join("\n"), sources: [] as ContextItem[] };
   }
 
-  lines.push("Relevant items:");
-  context.slice(0, 8).forEach((c, i) => {
-    lines.push(`${i + 1}. [${c.type}] ${c.title} — ${c.content}${c.url ? ` (${c.url})` : ""}`);
-  });
+  // lines.push("Relevant items:");
+  // context.slice(0, 8).forEach((c, i) => {
+  //   lines.push(`${i + 1}. [${c.type}] ${c.title} — ${c.content}${c.url ? ` (${c.url})` : ""}`);
+  // });
 
   lines.push("");
   lines.push("If you want, I can convert this into a step-by-step checklist for your profile.");

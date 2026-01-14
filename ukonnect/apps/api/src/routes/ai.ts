@@ -30,7 +30,12 @@ aiRouter.post("/chat", requireAuth, async (req, res, next) => {
       disclaimer: "This guidance is informational and not legal advice. Always confirm via official sources.",
       sources: result.sources
     });
-  } catch {
-    next(new HttpError(400, "Invalid message"));
+  } catch(err) {
+    // next(new HttpError(400, "Invalid message"));
+    if (err instanceof z.ZodError) {
+      next(new HttpError(400, "Invalid post: " + err.errors.map(e => e.message).join(", ")));
+    } else {
+      next(err);
+    }
   }
 });
