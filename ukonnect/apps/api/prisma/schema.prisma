@@ -39,6 +39,15 @@ model Profile {
   consentTerms Boolean @default(false)
   consentAI    Boolean @default(false)
 
+  // Notification Settings
+  notificationEmail    Boolean @default(true)
+  notificationPush     Boolean @default(true)
+
+  // Privacy & Security Settings
+  profileVisible       Boolean @default(true)
+  showNationality      Boolean @default(true)
+  showLocation         Boolean @default(true)
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
