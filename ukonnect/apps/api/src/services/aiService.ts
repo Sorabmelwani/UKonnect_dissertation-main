@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma.js";
+import { env } from "../config/env.js";
+import OpenAI from "openai";
 
 type ContextItem = { type: string; title: string; content: string; url?: string | null };
 
@@ -19,9 +21,9 @@ export async function buildContext(userId: string, question: string): Promise<Co
 
   const services = me?.city
     ? await prisma.localService.findMany({
-        where: { city: { contains: me.city } },
-        take: 5
-      })
+      where: { city: { contains: me.city } },
+      take: 5
+    })
     : [];
 
   const tasks = await prisma.userTask.findMany({
@@ -39,7 +41,7 @@ export async function buildContext(userId: string, question: string): Promise<Co
     ctx.push({ type: "service", title: s.name, content: `${s.category} in ${s.city}. ${s.description ?? ""}`, url: s.website });
   }
   for (const t of tasks) {
-    ctx.push({ type: "task", title: t.title, content: `${t.category} • ${t.status} • due ${t.dueAt ? t.dueAt.toISOString().slice(0,10) : "n/a"}` });
+    ctx.push({ type: "task", title: t.title, content: `${t.category} • ${t.status} • due ${t.dueAt ? t.dueAt.toISOString().slice(0, 10) : "n/a"}` });
   }
 
   return ctx;
@@ -71,4 +73,63 @@ export function simpleAnswer(question: string, context: ContextItem[]) {
   lines.push("If you want, I can convert this into a step-by-step checklist for your profile.");
 
   return { answer: lines.join("\n"), sources: context };
+}
+
+/**
+ * OpenAI API-powered response generator
+ * - Uses GPT to generate intelligent responses based on context
+ * - Requires OPENAI_API_KEY in .env file
+ * - Falls back to simpleAnswer if API key is not available
+ */
+export async function openAiAnswer(question: string, context: ContextItem[]) {
+  if (!env.OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not configured, falling back to simpleAnswer");
+    return simpleAnswer(question, context);
+  }
+
+  try {
+    const client = new OpenAI({
+      apiKey: env.OPENAI_API_KEY,
+    });
+
+    // Build context string for the prompt
+    const contextStr = context
+      .slice(0, 8)
+      .map(
+        (c, i) =>
+          `${i + 1}. [${c.type}] ${c.title}: ${c.content}${c.url ? ` (${c.url})` : ""}`
+      )
+      .join("\n");
+
+    const systemPrompt = `You are a helpful UK immigration assistant. You provide clear, accurate, and structured advice about UK immigration, visas, and related services. Always be empathetic and professional. Do not provide legal advice, but suggest consulting official sources like GOV.UK or a solicitor when needed.`;
+
+    const userPrompt = `Based on the following context and the user's question, provide a helpful and structured answer:
+
+Context:
+${contextStr || "No specific context available"}
+
+User Question: ${question}
+
+Please provide a clear, step-by-step response if applicable. Include relevant sources from the context if they exist.`;
+
+    const completion = await client.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
+
+    const answer =
+      completion.choices?.[0]?.message?.content ||
+      "Could not generate a response. Please try again.";
+
+    return { answer, sources: context };
+  } catch (error) {
+    console.error("OpenAI API call failed:", error);
+    // Fallback to simple answer on error
+    return simpleAnswer(question, context);
+  }
 }

@@ -14,5 +14,6 @@ export const env = {
   JWT_ACCESS_SECRET: requireEnv("JWT_ACCESS_SECRET"),
   JWT_REFRESH_SECRET: requireEnv("JWT_REFRESH_SECRET"),
 
-  DATABASE_URL: requireEnv("DATABASE_URL")
+  DATABASE_URL: requireEnv("DATABASE_URL"),
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? ""
 };

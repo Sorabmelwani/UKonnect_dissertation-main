@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/requireAuth.js";
 import { z } from "zod";
 import { HttpError } from "../utils/httpError.js";
-import { buildContext, simpleAnswer } from "../services/aiService.js";
+import { buildContext, simpleAnswer, openAiAnswer } from "../services/aiService.js";
 import { env } from "../config/env.js";
 
 export const aiRouter = Router();
@@ -22,7 +22,7 @@ aiRouter.post("/chat", requireAuth, async (req, res, next) => {
     const { message } = schema.parse(req.body);
 
     const ctx = await buildContext(req.user!.id, message);
-    const result = simpleAnswer(message, ctx);
+    const result = await openAiAnswer(message, ctx);
 
     res.json({
       ok: true,
