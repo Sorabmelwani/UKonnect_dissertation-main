@@ -110,6 +110,7 @@ model UserTask {
 
   @@index([userId])
   @@index([status])
+  @@unique([userId, templateId])
 }
 
 model Document {

@@ -48,6 +48,13 @@ function isTaskPriority(v: unknown): v is TaskPriority {
 }
 
 export async function generateTasksForUser(userId: string) {
+  // Check if user has already had tasks generated to prevent duplicate generation
+  const taskCount = await prisma.userTask.count({ where: { userId } });
+  if (taskCount > 0) {
+    // Tasks already exist for this user, return empty array
+    return [];
+  }
+
   const profile = await prisma.profile.findUnique({ where: { userId } });
   const p: ProfileLite = profile ?? {};
 
@@ -85,25 +92,33 @@ export async function generateTasksForUser(userId: string) {
 
     const dueAt = new Date(now.getTime() + dueDays * 24 * 60 * 60 * 1000);
 
-    const ut = await prisma.userTask.create({
-      data: {
-        userId,
-        templateId: t.id,
-        title: t.title,
-        description: t.description,
-        category: t.category,
-        priority,
-        status: "PENDING",
-        dueAt,
-      },
-    });
+    try {
+      const ut = await prisma.userTask.create({
+        data: {
+          userId,
+          templateId: t.id,
+          title: t.title,
+          description: t.description,
+          category: t.category,
+          priority,
+          status: "PENDING",
+          dueAt,
+        },
+      });
 
-    const remindAt = new Date(dueAt.getTime() - 48 * 60 * 60 * 1000);
-    await prisma.reminder.create({
-      data: { userId, userTaskId: ut.id, remindAt },
-    });
+      const remindAt = new Date(dueAt.getTime() - 48 * 60 * 60 * 1000);
+      await prisma.reminder.create({
+        data: { userId, userTaskId: ut.id, remindAt },
+      });
 
-    created.push(ut);
+      created.push(ut);
+    } catch (error: any) {
+      // If unique constraint violation, task already exists, skip it
+      if (error.code === "P2002") {
+        continue;
+      }
+      throw error;
+    }
   }
 
   return created;

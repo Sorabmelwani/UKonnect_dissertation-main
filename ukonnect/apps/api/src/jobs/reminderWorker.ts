@@ -1,25 +1,42 @@
 import cron from "node-cron";
 import { prisma } from "../lib/prisma.js";
 
+let isRunning = false;
 
 export function startReminderWorker() {
-  // Every minute
-  cron.schedule("* * * * *", async () => {
-    const now = new Date();
+  // Every 5 minutes - reduced frequency to prevent overlap
+  cron.schedule("*/5 * * * *", async () => {
+    // Skip if already running to prevent overlapping executions
+    if (isRunning) {
+      console.warn("[REMINDER-WORKER] Previous job still running, skipping this execution");
+      return;
+    }
 
-    const due = await prisma.reminder.findMany({
-      where: { sentAt: null, remindAt: { lte: now } },
-      take: 50
-    });
+    isRunning = true;
+    try {
+      const now = new Date();
 
-    if (!due.length) return;
+      // Use updateMany for better performance instead of looping
+      const due = await prisma.reminder.findMany({
+        where: { sentAt: null, remindAt: { lte: now } },
+        take: 100
+      });
 
-    for (const r of due) {
-      // Mark sent (in-app)
-      await prisma.reminder.update({
-        where: { id: r.id },
+      if (!due.length) return;
+
+      // Batch update all reminders at once
+      await prisma.reminder.updateMany({
+        where: {
+          id: { in: due.map(r => r.id) }
+        },
         data: { sentAt: new Date() }
       });
+
+      console.log(`[REMINDER-WORKER] Processed ${due.length} reminders`);
+    } catch (error) {
+      console.error("[REMINDER-WORKER] Error processing reminders:", error);
+    } finally {
+      isRunning = false;
     }
   });
 }
